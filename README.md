@@ -11,6 +11,7 @@ real-money account unless `ALLOW_LIVE_TRADING=true` is set (it is not).
 | **Stop everything right now** (kill switch) | Actions tab → **KILL SWITCH** → Run workflow → type `KILL`. Cancels all orders, closes all positions, emails you. |
 | **Stop it trading from tomorrow** | Actions tab → **Trade (morning)** → `...` → Disable workflow. Same for **Trade (afternoon)**. |
 | **Start it again** | Same place → Enable workflow (both Trade workflows). |
+| **Health check** (account + test email) | Actions tab → **Health check** → Run workflow. |
 | **See stats** | Actions tab → **Stats** → Run workflow → open the run → click the `stats` step. |
 | **Run one day watch-only** (no orders) | Actions tab → Trade (morning) → Run workflow → mode `watch-only` (and the same for afternoon). |
 
