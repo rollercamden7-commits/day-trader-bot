@@ -1,0 +1,26 @@
+# 3:50pm ET safety net: closes anything still open. Runs at both 19:50 and 20:50
+# UTC (summer/winter); the run outside 3:50-4:10pm ET does nothing.
+# Deliberately NOT in the engine's concurrency group, so it runs even if the
+# engine is stuck.
+name: Backstop (3:50pm close-out)
+on:
+  schedule:
+    - cron: "50 19 * * 1-5"
+    - cron: "50 20 * * 1-5"
+  workflow_dispatch:
+jobs:
+  backstop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DT_ALPACA_API_KEY: ${{ secrets.DT_ALPACA_API_KEY }}
+      DT_ALPACA_SECRET_KEY: ${{ secrets.DT_ALPACA_SECRET_KEY }}
+      GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - run: python -m day_trader.backstop

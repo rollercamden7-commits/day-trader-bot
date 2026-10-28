@@ -1,0 +1,47 @@
+# Morning trading job. GitHub's clock is UTC and ignores daylight saving, so this
+# starts at 12:50 UTC = 8:50am EDT (summer) / 7:50am EST (winter). The engine
+# waits for the 9:30 open itself and hands over to the afternoon job at 12:30pm ET
+# (GitHub stops any single job after 6 hours, so the day is split in two).
+name: Trade (morning)
+on:
+  schedule:
+    - cron: "50 12 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [paper, watch-only]
+        default: paper
+permissions:
+  contents: write
+concurrency:
+  group: day-trader-engine
+  cancel-in-progress: false
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      DT_ALPACA_API_KEY: ${{ secrets.DT_ALPACA_API_KEY }}
+      DT_ALPACA_SECRET_KEY: ${{ secrets.DT_ALPACA_SECRET_KEY }}
+      GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - name: Run the engine until 12:30pm ET
+        run: |
+          if [ "${{ inputs.mode }}" = "watch-only" ]; then FLAG=--dry-run; else FLAG=; fi
+          python -m day_trader.engine --until 12:30 $FLAG
+      - name: Save the trade log
+        if: always()
+        run: |
+          git config user.name "day-trader"; git config user.email "day-trader@users.noreply.github.com"
+          git add day_trader/state
+          git diff --cached --quiet || { git commit -m "State $(date -u +%F) morning"; git pull --rebase && git push; }
+      - name: Email me if this job failed
+        if: failure()
+        run: python -m day_trader.notify_failure "morning trading"

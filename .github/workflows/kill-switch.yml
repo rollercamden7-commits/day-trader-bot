@@ -1,0 +1,27 @@
+# KILL SWITCH button: Actions tab -> "KILL SWITCH" -> Run workflow.
+# Cancels every order and closes every position in bot #2's account right now.
+# To also stop new trading, disable the two "Trade" workflows afterwards.
+name: KILL SWITCH
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type KILL to confirm"
+        required: true
+jobs:
+  kill:
+    if: ${{ inputs.confirm == 'KILL' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DT_ALPACA_API_KEY: ${{ secrets.DT_ALPACA_API_KEY }}
+      DT_ALPACA_SECRET_KEY: ${{ secrets.DT_ALPACA_SECRET_KEY }}
+      GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - run: python -m day_trader.kill

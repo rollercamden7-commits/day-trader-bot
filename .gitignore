@@ -1,0 +1,12 @@
+# Secret keys - NEVER commit
+.env
+*.env
+# Local Python stuff
+.venv/
+__pycache__/
+*.pyc
+# Downloaded price data, local logs
+data_cache/
+logs/
+.crash_emailed
+.DS_Store

@@ -1,0 +1,46 @@
+# Afternoon trading job: 16:15 UTC = 12:15pm EDT / 11:15am EST. It waits in line
+# until the morning job finishes (same "concurrency group"), then trades until
+# the close, records the day and emails the recap.
+name: Trade (afternoon)
+on:
+  schedule:
+    - cron: "15 16 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [paper, watch-only]
+        default: paper
+permissions:
+  contents: write
+concurrency:
+  group: day-trader-engine
+  cancel-in-progress: false
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      DT_ALPACA_API_KEY: ${{ secrets.DT_ALPACA_API_KEY }}
+      DT_ALPACA_SECRET_KEY: ${{ secrets.DT_ALPACA_SECRET_KEY }}
+      GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - name: Run the engine until the close, then send the recap
+        run: |
+          if [ "${{ inputs.mode }}" = "watch-only" ]; then FLAG=--dry-run; else FLAG=; fi
+          python -m day_trader.engine $FLAG
+      - name: Save the trade log
+        if: always()
+        run: |
+          git config user.name "day-trader"; git config user.email "day-trader@users.noreply.github.com"
+          git add day_trader/state
+          git diff --cached --quiet || { git commit -m "State $(date -u +%F) afternoon"; git pull --rebase && git push; }
+      - name: Email me if this job failed
+        if: failure()
+        run: python -m day_trader.notify_failure "afternoon trading"
