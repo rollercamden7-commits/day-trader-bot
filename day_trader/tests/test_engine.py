@@ -141,6 +141,32 @@ class EngineFlowTests(unittest.TestCase):
         self.assertEqual(journal.open_trades(), [])
         self.assertEqual(journal.signals_today(NOW.date())[0]["action"], "missed")
 
+    def test_missed_signal_says_run_started_later(self):
+        e = self.e
+        late = NOW + timedelta(minutes=30)
+        e.now = late                                   # this run started after the signal
+        e.health.clock = lambda: late
+        e.health.data_tick()
+        e.scan(e.snapshot(late), late)
+        self.assertIn("before this run started", journal.signals_today(NOW.date())[0]["detail"])
+
+    def _closed_without_bracket_leg(self, sell_time):
+        e = self.e
+        e.scan(e.snapshot(NOW), NOW)
+        e.broker.pos.clear()                           # sold by something other than the bracket
+        e.broker.last_sell_fill = lambda sym, since: NS(filled_avg_price="101.0", filled_at=sell_time)
+        e.snapshot(NOW)
+        e.reconcile()
+        return journal.trades_df().iloc[0].exit_reason
+
+    def test_late_day_sell_is_end_of_day_close_out(self):
+        self.assertEqual(self._closed_without_bracket_leg(NOW.replace(hour=15, minute=55)),
+                         "end-of-day close-out")
+
+    def test_midday_sell_is_closed_outside_the_bot(self):
+        self.assertEqual(self._closed_without_bracket_leg(NOW.replace(hour=13, minute=0)),
+                         "closed outside the bot")
+
     def test_watch_only_places_no_orders(self):
         e = self.e
         e.dry, e.mode = True, "watch"

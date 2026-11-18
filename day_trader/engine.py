@@ -38,6 +38,7 @@ STRATEGY_MODULES = {
     "mean_reversion": "day_trader.strategies.mean_reversion",
 }
 FRESH_SIGNAL = timedelta(minutes=3)   # only act on signals from the last few minutes
+EOD_CLOSE_FROM = time(15, 50)         # sells after this are the 3:50 backstop or 3:55 close-out
 
 
 def log(msg):
@@ -140,8 +141,11 @@ class Engine:
             if ex is None and t["symbol"] not in self.positions:
                 fill = self.broker.last_sell_fill(t["symbol"], parent.filled_at)
                 if fill is not None:
+                    # Sells in the last minutes of the day come from the bot's own
+                    # close-out or the 3:50pm backstop, even if a later run records them.
+                    late = fill.filled_at.astimezone(ET).time() >= EOD_CLOSE_FROM
                     why = ("daily loss limit close-out" if self.state.halted
-                           else "end-of-day close-out" if self.state.flattened_eod
+                           else "end-of-day close-out" if self.state.flattened_eod or late
                            else "closed outside the bot")
                     ex = (float(fill.filled_avg_price), fill.filled_at, why)
             if ex:
@@ -168,8 +172,11 @@ class Engine:
                 sig = sigs[0]
                 self.done.add((name, sym))          # first signal of the day only (as in backtests)
                 if now - sig.time > FRESH_SIGNAL:
+                    started = getattr(self, "now", None)
+                    why = (f"came before this run started at {started:%H:%M}"
+                           if started and sig.time < started else "the bot was running behind")
                     journal.log_signal(self.today, sig.time.strftime("%H:%M"), name, sym,
-                                       "missed", "signal happened while the bot wasn't running")
+                                       "missed", why)
                     continue
                 self.act(sig, day, ctx, snap)
 
